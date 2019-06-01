@@ -83,6 +83,8 @@ app.post(
       return res.send(res.locals.result);
     } else {
       console.log("$$ POST REQUEST TO YELP API $$");
+      req.body.variables.offset = 3; // ****OFFSET****+
+      console.log(req.body.variables);
       request.post(
         {
           url: YELP_API_URL,
