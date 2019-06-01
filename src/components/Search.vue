@@ -40,12 +40,48 @@ export default {
               $location: String!
               $radius: Float!
               $limit: Int!
+              $offset: Int!
             ) {
               search(
                 term: $term
                 location: $location
                 radius: $radius
                 limit: $limit
+                sort_by: "rating"
+                offset: $offset
+              ) {
+                total
+                business {
+                  name
+                  rating
+                  price
+                  photos
+                  id
+                  location{
+                    formatted_address
+                    city
+                    state
+                  }
+                  reviews{
+                    text
+                    user{
+                      name
+                    }
+                    id
+                    rating
+                    time_created
+                    url
+                  }
+                }
+              }
+            }
+          `;
+          let a =  `{
+              search(
+                term: "${this.term}"
+                location: "${this.location}"
+                radius: ${this.radius*1609.34}
+                limit: ${this.limit}
                 sort_by: "rating"
               ) {
                 total
@@ -74,7 +110,7 @@ export default {
               }
             }
           `;
-          // console.log(q);
+          console.log(q.definitions[0].selectionSet.selections[0].arguments[0]);
           return q;
         }
       },
