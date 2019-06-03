@@ -34,7 +34,7 @@ export default {
         if (this.term && this.location && this.radius && this.limit) {
           let date = new Date();
           console.log('** query() **', date.toLocaleTimeString())
-          let q =  gql`
+          return gql`
             query searchYelp(
               $term: String!
               $location: String!
@@ -76,42 +76,6 @@ export default {
               }
             }
           `;
-          let a =  `{
-              search(
-                term: "${this.term}"
-                location: "${this.location}"
-                radius: ${this.radius*1609.34}
-                limit: ${this.limit}
-                sort_by: "rating"
-              ) {
-                total
-                business {
-                  name
-                  rating
-                  price
-                  photos
-                  id
-                  location{
-                    formatted_address
-                    city
-                    state
-                  }
-                  reviews{
-                    text
-                    user{
-                      name
-                    }
-                    id
-                    rating
-                    time_created
-                    url
-                  }
-                }
-              }
-            }
-          `;
-          console.log(q.definitions[0].selectionSet.selections[0].arguments[0]);
-          return q;
         }
       },
       variables() {

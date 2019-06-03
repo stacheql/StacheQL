@@ -13,7 +13,7 @@ var app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:8888",
+    origin: "http://localhost:8080",
     optionsSuccessStatus: 200,
   })
 );
@@ -58,32 +58,96 @@ const denormalize = pathsObject => {
   return payload;
 };
 
+const offsetKeys = (object, offset) => {
+  let result = {};
+  for (let key in object) {
+    let path = key.split(".");
+    if (path[4]) {
+      path[4] = +path[4] + offset;
+      result[path.join(".")] = object[key];
+    }
+  }
+  return result;
+};
+
 app.post(
   "/api",
   (req, res, next) => {
-    console.log(
-      `TERM: ${req.body.variables.term}    LIMIT: ${req.body.variables.limit}`
-    );
+    console.log("\n");
+    res.locals.query = `${req.body.variables.term.toLowerCase()} ${
+      req.body.variables.location
+    } ${req.body.variables.radius}`;
     res.locals.start = Date.now(); // for timer
-    redis.get(JSON.stringify(req.body), (err, result) => {
+    // below, res.locals.query was JSON.stringify(req.body)
+    redis.get(res.locals.query, (err, result) => {
       if (err) {
         console.log("~~ERROR~~ in redis.get: ", err); // will need better error handling
       } else if (result) {
-        res.locals.result = denormalize(JSON.parse(result));
-      } else {
-        res.locals.query = JSON.stringify(req.body);
+        let temp = {
+          // ".data.search.total": 0,
+          ".data.search.__typename": "Businesses",
+        };
+        let max = 0;
+        for (let key in JSON.parse(result)) {
+          let path = key.split(".");
+          if (path[4] && +path[4] < req.body.variables.limit) {
+            if (+path[4] > max) max = +path[4];
+            temp[key] = JSON.parse(result)[key];
+          }
+        }
+        if (req.body.variables.limit > max + 1) res.locals.offset = max + 1;
+        // console.log("OFFSET: ", res.locals.offset);
+        // res.locals.result = denormalize(JSON.parse(result));
+        res.locals.result = denormalize(temp);
       }
+      // else {
+      //   res.locals.query = res.locals.query;
+      // }
       next();
     });
   },
   (req, res, next) => {
-    if (res.locals.result) {
+    // ***SUPERSET***
+    if (res.locals.result && res.locals.offset) {
+      console.log("***SUPERSET ROUTE***");
+      req.body.variables.offset = res.locals.offset;
+      req.body.variables.limit = req.body.variables.limit - res.locals.offset;
+      request.post(
+        {
+          url: YELP_API_URL,
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + YELP_API_KEY,
+          },
+          json: true,
+          body: req.body,
+        },
+        (err, response, body) => {
+          res.locals.body = body;
+          res.locals.combined = denormalize(
+            Object.assign(
+              {},
+              normalize(res.locals.result),
+              offsetKeys(normalize(res.locals.body), res.locals.offset)
+            )
+          );
+          console.log("***COMBINED***: ", res.locals.combined);
+          return next();
+        }
+      );
+      // console.log(`Returned from cache: ${Date.now() - res.locals.start} ms`);
+      // res.locals.result.data.search.total = Date.now() - res.locals.start; // for timer
+      // return res.send(res.locals.result);
+    }
+    // ***SUBSET***
+    else if (res.locals.result) {
+      console.log("***SUBSET ROUTE***");
       console.log(`Returned from cache: ${Date.now() - res.locals.start} ms`);
       res.locals.result.data.search.total = Date.now() - res.locals.start; // for timer
       return res.send(res.locals.result);
     } else {
       console.log("$$ POST REQUEST TO YELP API $$");
-      req.body.variables.offset = 3; // ****OFFSET****+
+      req.body.variables.offset = 0; // need this for any API request, since it's part of the query in the gql
       console.log(req.body.variables);
       request.post(
         {
@@ -96,20 +160,26 @@ app.post(
           body: req.body,
         },
         (err, response, body) => {
-          res.locals.body = body; // before norm-denorm, right side was JSON.stringify(body)
-          // res.locals.result = body; // not necessary if willing to overwrite the 'total' inserted to Redis
-          // res.send(res.locals.result); // moved below for norm-denorm
+          res.locals.body = body;
           next();
         }
       );
     }
   },
   (req, res, next) => {
+    let normalized;
+    if (res.locals.combined) {
+      res.locals.combined.data.search.total = Date.now() - res.locals.start;
+      normalized = JSON.stringify(normalize(res.locals.combined));
+      res.send(res.locals.combined);
+    }
+    if (!res.locals.combined) {
+      res.locals.body.data.search.total = Date.now() - res.locals.start; // for demo timer
+      normalized = JSON.stringify(normalize(res.locals.body));
+      res.send(res.locals.body);
+    }
     console.log(`Inserted to Redis: ${Date.now() - res.locals.start} ms`);
-    res.locals.body.data.search.total = Date.now() - res.locals.start; // for timer feature
-    let normalized = JSON.stringify(normalize(res.locals.body)); // norm-denorm
-    res.send(res.locals.body); // before norm-denorm, this was up in HTTP request
-    redis.set(res.locals.query, normalized, "ex", EXPIRATION); // before norm-denorm, 'normalized' was res.locals.body
+    redis.set(res.locals.query, normalized, "ex", EXPIRATION);
   }
 );
 
