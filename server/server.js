@@ -20,6 +20,24 @@ app.use(
 
 app.use(bodyParser.json());
 
+// let exist = {};
+
+const clean = object => {
+  // exist = {};
+  let key = Object.values(object);
+  let stringed = "";
+  for (let i=0; i<key.length-1; i++) {
+    stringed += key[i];
+  }
+  // exist[stringed] = object.limit
+  console.log(`** this is inside clean function and this is cleaned result **`);
+  console.log(stringed)
+  // console.log(`** this is exist **`);
+  // console.log(exist)
+  return stringed;
+ 
+}
+
 const normalize = object => {
   return Object.assign(
     {},
@@ -65,13 +83,25 @@ app.post(
       `TERM: ${req.body.variables.term}    LIMIT: ${req.body.variables.limit}`
     );
     res.locals.start = Date.now(); // for timer
-    redis.get(JSON.stringify(req.body), (err, result) => {
+    let cleaned = clean(req.body.variables);
+    console.log(`** this is cleaned in app.post **`)
+    console.log(cleaned)
+
+    // What was here before we decided to clean query to turn it into new key
+    // redis.get(JSON.stringify(req.body), (err, result) => {
+    redis.get(cleaned, (err, result) => {
+
       if (err) {
         console.log("~~ERROR~~ in redis.get: ", err); // will need better error handling
       } else if (result) {
+        console.log(`** this is result from redis.get **`)
+        console.log(result);
         res.locals.result = denormalize(JSON.parse(result));
       } else {
-        res.locals.query = JSON.stringify(req.body);
+        // What was here before we decided to clean query to turn it into new key
+        // res.locals.query = JSON.stringify(req.body);
+        res.locals.cleaned = cleaned;
+
       }
       next();
     });
@@ -107,9 +137,22 @@ app.post(
   (req, res, next) => {
     console.log(`Inserted to Redis: ${Date.now() - res.locals.start} ms`);
     res.locals.body.data.search.total = Date.now() - res.locals.start; // for timer feature
-    let normalized = JSON.stringify(normalize(res.locals.body)); // norm-denorm
+    // res.locals.body.data.limit = req.body.variables.limit
+    // res.locals.body.data.search.business.0.price = req.body.variables.limit
+    let normalized = JSON.stringify(normalize(res.locals.body)) // norm-denorm
+
+    console.log("** this is normalized **")
+    console.log(normalized)
+
+    // let added = normalized + req.body.variables.limit
+
+    // console.log("** this is normalized with limit added to end")
+    // console.log(added);
+
     res.send(res.locals.body); // before norm-denorm, this was up in HTTP request
-    redis.set(res.locals.query, normalized, "ex", EXPIRATION); // before norm-denorm, 'normalized' was res.locals.body
+    // What was here before we decided to clean query to turn it into new key
+    // redis.set(res.locals.query, normalized, "ex", EXPIRATION); // before norm-denorm, 'normalized' was res.locals.body
+    redis.set(res.locals.cleaned, normalized, "ex", EXPIRATION)
   }
 );
 
