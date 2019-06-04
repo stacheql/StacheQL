@@ -7,11 +7,14 @@ require("dotenv").config();
 // const redis = new Redis();
 const app = express();
 const Stache = require("../stache.js");
-const stache = new Stache();
 
-// const EXPIRATION = 2 * 60; // seconds
 const YELP_API_URL = "https://api.yelp.com/v3/graphql";
 const YELP_API_KEY = process.env.ACCESS_TOKEN;
+
+const config = {
+  cacheExpiration: 120, // seconds
+};
+const stache = new Stache(config);
 
 app.use(
   cors({

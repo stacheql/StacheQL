@@ -1,11 +1,11 @@
 const Redis = require("ioredis");
 const redis = new Redis();
-const EXPIRATION = 2 * 60; // seconds
 
 class Stache {
-  constructor() {
+  constructor(config) {
     this.it = this.it.bind(this);
     this.check = this.check.bind(this);
+    this.config = config;
   }
 
   denormalize(object) {
@@ -97,7 +97,7 @@ class Stache {
       res.send(res.locals.body);
     }
     console.log(`Inserted to Redis: ${Date.now() - res.locals.start} ms`);
-    redis.set(res.locals.query, normalized, "ex", EXPIRATION);
+    redis.set(res.locals.query, normalized, "ex", this.config.cacheExpiration);
   }
 }
 
