@@ -4,7 +4,9 @@ const redis = new Redis();
 class Stache {
   constructor(config) {
     this.it = this.it.bind(this);
+    this.stage = this.stage.bind(this);
     this.check = this.check.bind(this);
+    this.makeQueryString = this.makeQueryString.bind(this);
     this.config = config;
   }
 
@@ -54,11 +56,18 @@ class Stache {
     return newObj;
   }
 
+  makeQueryString(variables, req) {
+    let queryString = "";
+    for (let key in variables) {
+      let stringy = "req.body.variables.".concat(key);
+      queryString = queryString.concat(eval(stringy));
+    }
+    return queryString.toLowerCase();
+  }
+
   check(req, res, next) {
     console.log("\n");
-    res.locals.query = `${req.body.variables.term.toLowerCase()} ${
-      req.body.variables.location
-    } ${req.body.variables.radius}`;
+    res.locals.query = this.makeQueryString(this.config.uniqueVariables, req);
     res.locals.start = Date.now(); // demo timer
     redis.get(res.locals.query, (err, result) => {
       if (err) {
@@ -77,21 +86,54 @@ class Stache {
         }
         if (req.body.variables.limit > max + 1) res.locals.offset = max + 1; // initializing res.locals.offset will mean that we have a superset
       }
-      next();
+      this.stage(req, res, next);
     });
+  }
+
+  stage(req, res, next) {
+    // ***SUBSET ROUTE***
+    if (res.locals.subset && !res.locals.offset) {
+      console.log(`*** SUBSET: get ${req.body.variables.limit} from cache ***`);
+      console.log(`Returned from cache: ${Date.now() - res.locals.start} ms`);
+      res.locals.subset = this.denormalize(res.locals.subset);
+      res.locals.subset.data.search.total = Date.now() - res.locals.start; // for timer
+      return res.send(res.locals.subset);
+    }
+    // ***SUPERSET ROUTE***
+    else if (res.locals.subset && res.locals.offset) {
+      console.log(
+        `*** SUPERSET: fetch ${req.body.variables.limit -
+          res.locals.offset} add'l ***`
+      );
+      req.body.variables.offset = res.locals.offset;
+      req.body.variables.limit = req.body.variables.limit - res.locals.offset;
+      res.locals.httpRequest = true;
+      next();
+      // ***NO MATCH ROUTE***
+    } else {
+      console.log(`*** NO MATCH: fetch ${req.body.variables.limit} ***`);
+      req.body.variables.offset = 0; // need to initialize offset for any API request
+      res.locals.httpRequest = true;
+      next();
+    }
   }
 
   it(req, res) {
     let normalized;
     // ***SUPERSET ROUTE***
-    if (res.locals.superset) {
+    if (res.locals.subset && res.locals.offset) {
+      res.locals.superset = Object.assign(
+        {},
+        res.locals.subset,
+        this.offsetKeys(this.normalize(res.locals.body), res.locals.offset)
+      );
       normalized = JSON.stringify(res.locals.superset);
       res.locals.superset = this.denormalize(res.locals.superset);
       res.locals.superset.data.search.total = Date.now() - res.locals.start; // demo timer
       res.send(res.locals.superset);
     }
     // ***NO MATCH ROUTE***
-    if (!res.locals.superset) {
+    else {
       res.locals.body.data.search.total = Date.now() - res.locals.start; // demo timer
       normalized = JSON.stringify(this.normalize(res.locals.body));
       res.send(res.locals.body);
