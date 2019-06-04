@@ -1,4 +1,13 @@
+const Redis = require("ioredis");
+const redis = new Redis();
+const EXPIRATION = 2 * 60; // seconds
+
 class Stache {
+  constructor() {
+    this.it = this.it.bind(this);
+    this.check = this.check.bind(this);
+  }
+
   denormalize(object) {
     const newObj = {};
     for (let key in object) {
@@ -43,6 +52,52 @@ class Stache {
       }
     }
     return newObj;
+  }
+
+  check(req, res, next) {
+    console.log("\n");
+    res.locals.query = `${req.body.variables.term.toLowerCase()} ${
+      req.body.variables.location
+    } ${req.body.variables.radius}`;
+    res.locals.start = Date.now(); // demo timer
+    redis.get(res.locals.query, (err, result) => {
+      if (err) {
+        console.log("~~ERROR~~ in redis.get: ", err); // more error handling?
+      } else if (result) {
+        res.locals.subset = {
+          ".data.search.__typename": "Businesses",
+        };
+        let max = 0;
+        for (let key in JSON.parse(result)) {
+          let path = key.split(".");
+          if (path[4] && +path[4] < req.body.variables.limit) {
+            if (+path[4] > max) max = +path[4];
+            res.locals.subset[key] = JSON.parse(result)[key];
+          }
+        }
+        if (req.body.variables.limit > max + 1) res.locals.offset = max + 1; // initializing res.locals.offset will mean that we have a superset
+      }
+      next();
+    });
+  }
+
+  it(req, res) {
+    let normalized;
+    // ***SUPERSET ROUTE***
+    if (res.locals.superset) {
+      normalized = JSON.stringify(res.locals.superset);
+      res.locals.superset = this.denormalize(res.locals.superset);
+      res.locals.superset.data.search.total = Date.now() - res.locals.start; // demo timer
+      res.send(res.locals.superset);
+    }
+    // ***NO MATCH ROUTE***
+    if (!res.locals.superset) {
+      res.locals.body.data.search.total = Date.now() - res.locals.start; // demo timer
+      normalized = JSON.stringify(this.normalize(res.locals.body));
+      res.send(res.locals.body);
+    }
+    console.log(`Inserted to Redis: ${Date.now() - res.locals.start} ms`);
+    redis.set(res.locals.query, normalized, "ex", EXPIRATION);
   }
 }
 
