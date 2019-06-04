@@ -57,23 +57,6 @@ class Stache {
     return newObj;
   }
 
-<<<<<<< HEAD
-  clean (object) {
-    let key = Object.values(object);
-    let stringed = "";
-    
-    for (let i=0; i<key.length-1; i++) {
-      if (i === 0) {
-        stringed += key[i].toLowerCase();
-      } else {
-        stringed = stringed + " " + key[i]
-      }
-    }
-    console.log(`** this is inside clean function and this is cleaned result **`);
-    console.log(stringed)
-  
-    return stringed;
-=======
   makeQueryString(variables, req) {
     let queryString = "";
     for (let key in variables) {
@@ -81,17 +64,11 @@ class Stache {
       queryString = queryString.concat(eval(stringy));
     }
     return queryString.toLowerCase();
->>>>>>> e688f5ef6b5aea0d55068b28082ee494357f1116
   }
 
   check(req, res, next) {
     console.log("\n");
-<<<<<<< HEAD
-    // variables is a key that is set in our vue js file
-    res.locals.query = this.clean(req.body.variables);
-=======
     res.locals.query = this.makeQueryString(this.config.uniqueVariables, req);
->>>>>>> e688f5ef6b5aea0d55068b28082ee494357f1116
     res.locals.start = Date.now(); // demo timer
     redis.get(res.locals.query, (err, result) => {
       if (err) {
