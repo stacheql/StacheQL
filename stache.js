@@ -6,6 +6,7 @@ class Stache {
     this.it = this.it.bind(this);
     this.stage = this.stage.bind(this);
     this.check = this.check.bind(this);
+    this.makeQueryString = this.makeQueryString.bind(this);
     this.config = config;
   }
 
@@ -55,11 +56,18 @@ class Stache {
     return newObj;
   }
 
+  makeQueryString(variables, req) {
+    let queryString = "";
+    for (let key in variables) {
+      let stringy = "req.body.variables.".concat(key);
+      queryString = queryString.concat(eval(stringy));
+    }
+    return queryString.toLowerCase();
+  }
+
   check(req, res, next) {
     console.log("\n");
-    res.locals.query = `${req.body.variables.term.toLowerCase()} ${
-      req.body.variables.location
-    } ${req.body.variables.radius}`;
+    res.locals.query = this.makeQueryString(this.config.uniqueVariables, req);
     res.locals.start = Date.now(); // demo timer
     redis.get(res.locals.query, (err, result) => {
       if (err) {

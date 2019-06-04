@@ -11,6 +11,11 @@ const YELP_API_KEY = process.env.ACCESS_TOKEN;
 
 const config = {
   cacheExpiration: 120, // seconds
+  uniqueVariables: {
+    term: String,
+    location: Number,
+    radius: Number,
+  },
 };
 const stache = new Stache(config);
 
