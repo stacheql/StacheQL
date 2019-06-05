@@ -1,0 +1,147 @@
+const Redis = require("ioredis");
+const redis = new Redis();
+
+class Stache {
+  constructor(config, supersets = true) {
+    this.it = this.it.bind(this);
+    this.stage = this.stage.bind(this);
+    this.check = this.check.bind(this);
+    this.makeQueryString = this.makeQueryString.bind(this);
+    this.config = config;
+    this.supersets = supersets;
+  }
+
+  denormalize(object) {
+    const newObj = {};
+    for (let key in object) {
+      let workingObj = newObj;
+      let path = key.split(".");
+      for (let i = 1; i < path.length; i += 1) {
+        const e = path[i];
+        if (i === path.length - 1) workingObj[e] = object[key];
+        if (!workingObj[e]) {
+          if (Number(path[i + 1]) || Number(path[i + 1]) === 0) {
+            workingObj[e] = [];
+          } else workingObj[e] = {};
+        }
+        workingObj = workingObj[e];
+      }
+    }
+    return newObj;
+  }
+
+  normalize(object) {
+    return Object.assign(
+      {},
+      ...(function flattener(objectBit, path = "") {
+        return [].concat(
+          ...Object.keys(objectBit).map(key => {
+            return typeof objectBit[key] === "object" && objectBit[key] !== null
+              ? flattener(objectBit[key], `${path}.${key}`)
+              : { [`${path}.${key}`]: objectBit[key] };
+          })
+        );
+      })(object)
+    );
+  }
+
+  offsetKeys(object, offset) {
+    let newObj = {};
+    for (let key in object) {
+      let path = key.split(".");
+      if (path[4]) {
+        path[4] = +path[4] + offset;
+        newObj[path.join(".")] = object[key];
+      }
+    }
+    return newObj;
+  }
+
+  makeQueryString(variables, req) {
+    let queryString = "";
+    for (let key in variables) {
+      let stringy = "req.body.variables.".concat(key);
+      queryString = queryString.concat(eval(stringy));
+    }
+    return queryString.toLowerCase();
+  }
+
+  check(req, res, next) {
+    res.locals.query = this.makeQueryString(this.config.uniqueVariables, req);
+    redis.get(res.locals.query, (err, result) => {
+      if (err) {
+      } else if (result) {
+        let parsedResult = JSON.parse(result);
+        if (
+          parsedResult[`.data.${this.config.queryObject}.count`] ===
+          req.body.variables[this.config.flexArg]
+        ) {   
+          return res.send(this.denormalize(parsedResult));
+        } else {
+          res.locals.subset = {};
+          res.locals.subset[
+            `.data.${this.config.queryObject}.__typename`
+          ] = this.config.queryTypename;
+          let max = 0;
+          for (let key in parsedResult) {
+            let path = key.split(".");
+            if (path[4] && +path[4] < req.body.variables[this.config.flexArg]) {
+              if (+path[4] > max) max = +path[4];
+              res.locals.subset[key] = parsedResult[key];
+            }
+          }
+          if (req.body.variables[this.config.flexArg] > max + 1)
+            res.locals.offset = max + 1;
+        }
+      }
+      this.stage(req, res, next);
+    });
+  }
+
+  stage(req, res, next) {
+    if (res.locals.subset && !res.locals.offset) {
+      return res.send(this.denormalize(res.locals.subset));
+    }
+    else if (res.locals.subset && res.locals.offset && this.supersets) {
+      req.body.variables[this.config.offsetArg] = res.locals.offset;
+      req.body.variables[this.config.flexArg] =
+        req.body.variables[this.config.flexArg] - res.locals.offset;
+      res.locals.httpRequest = true;
+      next();
+    } else {
+      req.body.variables[this.config.offsetArg] = 0; 
+      res.locals.httpRequest = true;
+      next();
+    }
+  }
+
+  it(req, res) {
+    let normalized;
+    if (res.locals.subset && res.locals.offset && this.supersets) {
+      res.locals.superset = Object.assign(
+        {},
+        res.locals.subset,
+        this.offsetKeys(this.normalize(res.locals.body), res.locals.offset)
+      );
+      normalized = res.locals.superset;
+      normalized[`.data.${this.config.queryObject}.count`] =
+        req.body.variables[this.config.flexArg] +
+        req.body.variables[this.config.offsetArg];
+      res.send(this.denormalize(res.locals.superset));
+    }
+    else {
+      normalized = this.normalize(res.locals.body);
+      normalized[`.data.${this.config.queryObject}.count`] =
+        req.body.variables[this.config.flexArg];
+      res.send(res.locals.body);
+    }
+    redis.set(
+      res.locals.query,
+      JSON.stringify(normalized),
+      "ex",
+      this.config.cacheExpiration
+    );
+  }
+}
+
+module.exports = Stache;
