@@ -1,0 +1,34 @@
+{
+  "name": "stacheql",
+  "version": "2.0.2",
+  "description": "simple and fast server-side cache for graphql",
+  "main": "./src/stache.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StacheQL/StacheQL.git"
+  },
+  "keywords": [
+    "stacheql",
+    "cache",
+    "graphql",
+    "caching",
+    "server-side",
+    "server",
+    "graph",
+    "fast",
+    "library",
+    "apollo"
+  ],
+  "author": "StacheQL",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/StacheQL/StacheQL/issues"
+  },
+  "homepage": "https://github.com/StacheQL/StacheQL#readme",
+  "dependencies": {
+    "ioredis": "^4.9.5"
+  }
+}
