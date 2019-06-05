@@ -32,8 +32,6 @@ export default {
     search: {
       query() {
         if (this.term && this.location && this.radius && this.limit) {
-          let date = new Date();
-          console.log('** query() **', date.toLocaleTimeString())
           return gql`
             query searchYelp(
               $term: String!

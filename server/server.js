@@ -6,8 +6,8 @@ require("dotenv").config();
 const app = express();
 const Stache = require("../stache.js");
 
-const YELP_API_URL = "https://api.yelp.com/v3/graphql";
-const YELP_API_KEY = process.env.ACCESS_TOKEN;
+const API_URL = "https://api.yelp.com/v3/graphql";
+const API_KEY = process.env.ACCESS_TOKEN;
 
 const config = {
   cacheExpiration: 120, // seconds
@@ -16,8 +16,14 @@ const config = {
     location: Number,
     radius: Number,
   },
+  queryObject: "search",
+  queryTypename: "Businesses",
+  flexArg: "limit",
+  offsetArg: "offset",
 };
 const stache = new Stache(config);
+
+app.use(bodyParser.json());
 
 app.use(
   cors({
@@ -26,8 +32,6 @@ app.use(
   })
 );
 
-app.use(bodyParser.json());
-
 app.post(
   "/api",
   stache.check,
@@ -35,10 +39,10 @@ app.post(
     if (res.locals.httpRequest) {
       request.post(
         {
-          url: YELP_API_URL,
+          url: API_URL,
           method: "POST",
           headers: {
-            Authorization: "Bearer " + YELP_API_KEY,
+            Authorization: "Bearer " + API_KEY,
           },
           json: true,
           body: req.body,
