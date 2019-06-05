@@ -1,5 +1,10 @@
 const Redis = require("ioredis");
-const redis = new Redis();
+require("dotenv").config();
+const redis = new Redis({
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  password: process.env.DB_PASS
+});
 
 class Stache {
   constructor(config) {
@@ -8,7 +13,6 @@ class Stache {
     this.check = this.check.bind(this);
     this.makeQueryString = this.makeQueryString.bind(this);
     this.config = config;
-    this.clean = this.clean.bind(this);
   }
 
   denormalize(object) {
@@ -78,24 +82,11 @@ class Stache {
           ".data.search.__typename": "Businesses",
         };
         let max = 0;
-        let arrayed = Object.keys(JSON.parse(result))
-        let last = arrayed[arrayed.length-2].split(".");
-        let foured = last[4];
-        // console.log("this should be foured");
-        // console.log(foured);
-        
-        
-        // console.log("this should be last arrayed");
-        // console.log(arrayed[arrayed.length-2]);
         for (let key in JSON.parse(result)) {
           let path = key.split(".");
-          // console.log("this is path");
-          // console.log(path);
           if (path[4] && +path[4] < req.body.variables.limit) {
             if (+path[4] > max) max = +path[4];
             res.locals.subset[key] = JSON.parse(result)[key];
-            console.log("this is res.locals.subset[key]")
-            console.log(res.locals.subset[key])
           }
         }
         if (req.body.variables.limit > max + 1) res.locals.offset = max + 1; // initializing res.locals.offset will mean that we have a superset
