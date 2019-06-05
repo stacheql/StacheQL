@@ -76,18 +76,22 @@ class Stache {
       } else if (result) {
         let parsedResult = JSON.parse(result);
         // ***EXACT MATCH***
-        if (parsedResult[".data.search.count"] === req.body.variables.limit) {
+        if (
+          parsedResult[`.data.${this.config.queryObject}.count`] ===
+          req.body.variables[this.config.flexArg]
+        ) {
           parsedResult[".data.search.total"] = Date.now() - res.locals.start; // for timer
-          console.log(`*** EXACT: ${req.body.variables.limit} from cache ***`);
+          console.log(
+            `*** EXACT: ${
+              req.body.variables[this.config.flexArg]
+            } from cache ***`
+          );
           console.log(
             `Returned from cache: ${Date.now() - res.locals.start} ms`
           );
           return res.send(this.denormalize(parsedResult));
           // ***SUBSET MATCH***
         } else {
-          // res.locals.subset = {
-          //   ".data.search.__typename": "Businesses",
-          // };
           res.locals.subset = {};
           res.locals.subset[
             `.data.${this.config.queryObject}.__typename`
@@ -95,12 +99,13 @@ class Stache {
           let max = 0;
           for (let key in parsedResult) {
             let path = key.split(".");
-            if (path[4] && +path[4] < req.body.variables.limit) {
+            if (path[4] && +path[4] < req.body.variables[this.config.flexArg]) {
               if (+path[4] > max) max = +path[4];
               res.locals.subset[key] = parsedResult[key];
             }
           }
-          if (req.body.variables.limit > max + 1) res.locals.offset = max + 1; // initializing res.locals.offset will mean that we have a superset
+          if (req.body.variables[this.config.flexArg] > max + 1)
+            res.locals.offset = max + 1; // initializing res.locals.offset will mean that we have a superset
         }
       }
       this.stage(req, res, next);
@@ -110,7 +115,11 @@ class Stache {
   stage(req, res, next) {
     // ***SUBSET ROUTE***
     if (res.locals.subset && !res.locals.offset) {
-      console.log(`*** SUBSET: get ${req.body.variables.limit} from cache ***`);
+      console.log(
+        `*** SUBSET: get ${
+          req.body.variables[this.config.flexArg]
+        } from cache ***`
+      );
       console.log(`Returned from cache: ${Date.now() - res.locals.start} ms`);
       res.locals.subset = this.denormalize(res.locals.subset);
       res.locals.subset.data.search.total = Date.now() - res.locals.start; // for timer
@@ -119,17 +128,20 @@ class Stache {
     // ***SUPERSET ROUTE***
     else if (res.locals.subset && res.locals.offset && this.supersets) {
       console.log(
-        `*** SUPERSET: fetch ${req.body.variables.limit -
+        `*** SUPERSET: fetch ${req.body.variables[this.config.flexArg] -
           res.locals.offset} add'l ***`
       );
-      req.body.variables.offset = res.locals.offset;
-      req.body.variables.limit = req.body.variables.limit - res.locals.offset;
+      req.body.variables[this.config.offsetArg] = res.locals.offset;
+      req.body.variables[this.config.flexArg] =
+        req.body.variables[this.config.flexArg] - res.locals.offset;
       res.locals.httpRequest = true;
       next();
       // ***NO MATCH ROUTE***
     } else {
-      console.log(`*** NO MATCH: fetch ${req.body.variables.limit} ***`);
-      req.body.variables.offset = 0; // need to initialize offset for any API request
+      console.log(
+        `*** NO MATCH: fetch ${req.body.variables[this.config.flexArg]} ***`
+      );
+      req.body.variables[this.config.offsetArg] = 0; // need to initialize offset for any API request
       res.locals.httpRequest = true;
       next();
     }
@@ -145,8 +157,9 @@ class Stache {
         this.offsetKeys(this.normalize(res.locals.body), res.locals.offset)
       );
       normalized = res.locals.superset;
-      normalized[".data.search.count"] =
-        req.body.variables.limit + req.body.variables.offset;
+      normalized[`.data.${this.config.queryObject}.count`] =
+        req.body.variables[this.config.flexArg] +
+        req.body.variables[this.config.offsetArg];
       res.locals.superset = this.denormalize(res.locals.superset);
       res.locals.superset.data.search.total = Date.now() - res.locals.start; // demo timer
       res.send(res.locals.superset);
@@ -155,7 +168,8 @@ class Stache {
     else {
       res.locals.body.data.search.total = Date.now() - res.locals.start; // demo timer
       normalized = this.normalize(res.locals.body);
-      normalized[".data.search.count"] = req.body.variables.limit;
+      normalized[`.data.${this.config.queryObject}.count`] =
+        req.body.variables[this.config.flexArg];
       res.send(res.locals.body);
     }
     console.log(`Inserted to Redis: ${Date.now() - res.locals.start} ms`);

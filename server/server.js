@@ -18,6 +18,8 @@ const config = {
   },
   queryObject: "search",
   queryTypename: "Businesses",
+  flexArg: "limit",
+  offsetArg: "offset",
 };
 const stache = new Stache(config);
 
