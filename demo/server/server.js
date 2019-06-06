@@ -4,25 +4,25 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 require("dotenv").config();
 const app = express();
-// const Stache = require("../stache.js");
-const Stache = require("stacheql");
+const Stache = require("../stache.js");
+// const Stache = require("stacheql");
 
 const API_URL = "https://api.yelp.com/v3/graphql";
 const API_KEY = process.env.ACCESS_TOKEN;
 
 const config = {
   cacheExpiration: 120, // seconds
-  uniqueVariables: {
+  staticArgs: {
     term: String,
     location: Number,
     radius: Number,
   },
-  queryObject: "search",
-  queryTypename: "Businesses",
   flexArg: "limit",
   offsetArg: "offset",
+  queryObject: "search",
+  queryTypename: "Businesses",
 };
-const stache = new Stache(config, true);
+const stache = new Stache(config);
 
 app.use(bodyParser.json());
 

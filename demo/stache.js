@@ -68,7 +68,7 @@ class Stache {
 
   check(req, res, next) {
     console.log("\n");
-    res.locals.query = this.makeQueryString(this.config.uniqueVariables, req);
+    res.locals.query = this.makeQueryString(this.config.staticArgs, req);
     res.locals.start = Date.now();
     redis.get(res.locals.query, (err, result) => {
       if (err) {
