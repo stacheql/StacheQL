@@ -2,12 +2,13 @@ const Redis = require("ioredis");
 const redis = new Redis();
 
 class Stache {
-  constructor(config) {
+  constructor(config, supersets = true) {
     this.it = this.it.bind(this);
     this.stage = this.stage.bind(this);
     this.check = this.check.bind(this);
     this.makeQueryString = this.makeQueryString.bind(this);
     this.config = config;
+    this.supersets = supersets;
   }
 
   denormalize(object) {
@@ -73,18 +74,39 @@ class Stache {
       if (err) {
         console.log("~~ERROR~~ in redis.get: ", err); // more error handling?
       } else if (result) {
-        res.locals.subset = {
-          ".data.search.__typename": "Businesses",
-        };
-        let max = 0;
-        for (let key in JSON.parse(result)) {
-          let path = key.split(".");
-          if (path[4] && +path[4] < req.body.variables.limit) {
-            if (+path[4] > max) max = +path[4];
-            res.locals.subset[key] = JSON.parse(result)[key];
+        let parsedResult = JSON.parse(result);
+        // ***EXACT MATCH***
+        if (
+          parsedResult[`.data.${this.config.queryObject}.count`] ===
+          req.body.variables[this.config.flexArg]
+        ) {
+          parsedResult[".data.search.total"] = Date.now() - res.locals.start; // for timer
+          console.log(
+            `*** EXACT: ${
+              req.body.variables[this.config.flexArg]
+            } from cache ***`
+          );
+          console.log(
+            `Returned from cache: ${Date.now() - res.locals.start} ms`
+          );
+          return res.send(this.denormalize(parsedResult));
+          // ***SUBSET MATCH***
+        } else {
+          res.locals.subset = {};
+          res.locals.subset[
+            `.data.${this.config.queryObject}.__typename`
+          ] = this.config.queryTypename;
+          let max = 0;
+          for (let key in parsedResult) {
+            let path = key.split(".");
+            if (path[4] && +path[4] < req.body.variables[this.config.flexArg]) {
+              if (+path[4] > max) max = +path[4];
+              res.locals.subset[key] = parsedResult[key];
+            }
           }
+          if (req.body.variables[this.config.flexArg] > max + 1)
+            res.locals.offset = max + 1; // initializing res.locals.offset will mean that we have a superset
         }
-        if (req.body.variables.limit > max + 1) res.locals.offset = max + 1; // initializing res.locals.offset will mean that we have a superset
       }
       this.stage(req, res, next);
     });
@@ -93,26 +115,33 @@ class Stache {
   stage(req, res, next) {
     // ***SUBSET ROUTE***
     if (res.locals.subset && !res.locals.offset) {
-      console.log(`*** SUBSET: get ${req.body.variables.limit} from cache ***`);
+      console.log(
+        `*** SUBSET: get ${
+          req.body.variables[this.config.flexArg]
+        } from cache ***`
+      );
       console.log(`Returned from cache: ${Date.now() - res.locals.start} ms`);
       res.locals.subset = this.denormalize(res.locals.subset);
       res.locals.subset.data.search.total = Date.now() - res.locals.start; // for timer
       return res.send(res.locals.subset);
     }
     // ***SUPERSET ROUTE***
-    else if (res.locals.subset && res.locals.offset) {
+    else if (res.locals.subset && res.locals.offset && this.supersets) {
       console.log(
-        `*** SUPERSET: fetch ${req.body.variables.limit -
+        `*** SUPERSET: fetch ${req.body.variables[this.config.flexArg] -
           res.locals.offset} add'l ***`
       );
-      req.body.variables.offset = res.locals.offset;
-      req.body.variables.limit = req.body.variables.limit - res.locals.offset;
+      req.body.variables[this.config.offsetArg] = res.locals.offset;
+      req.body.variables[this.config.flexArg] =
+        req.body.variables[this.config.flexArg] - res.locals.offset;
       res.locals.httpRequest = true;
       next();
       // ***NO MATCH ROUTE***
     } else {
-      console.log(`*** NO MATCH: fetch ${req.body.variables.limit} ***`);
-      req.body.variables.offset = 0; // need to initialize offset for any API request
+      console.log(
+        `*** NO MATCH: fetch ${req.body.variables[this.config.flexArg]} ***`
+      );
+      req.body.variables[this.config.offsetArg] = 0; // need to initialize offset for any API request
       res.locals.httpRequest = true;
       next();
     }
@@ -121,13 +150,16 @@ class Stache {
   it(req, res) {
     let normalized;
     // ***SUPERSET ROUTE***
-    if (res.locals.subset && res.locals.offset) {
+    if (res.locals.subset && res.locals.offset && this.supersets) {
       res.locals.superset = Object.assign(
         {},
         res.locals.subset,
         this.offsetKeys(this.normalize(res.locals.body), res.locals.offset)
       );
-      normalized = JSON.stringify(res.locals.superset);
+      normalized = res.locals.superset;
+      normalized[`.data.${this.config.queryObject}.count`] =
+        req.body.variables[this.config.flexArg] +
+        req.body.variables[this.config.offsetArg];
       res.locals.superset = this.denormalize(res.locals.superset);
       res.locals.superset.data.search.total = Date.now() - res.locals.start; // demo timer
       res.send(res.locals.superset);
@@ -135,11 +167,18 @@ class Stache {
     // ***NO MATCH ROUTE***
     else {
       res.locals.body.data.search.total = Date.now() - res.locals.start; // demo timer
-      normalized = JSON.stringify(this.normalize(res.locals.body));
+      normalized = this.normalize(res.locals.body);
+      normalized[`.data.${this.config.queryObject}.count`] =
+        req.body.variables[this.config.flexArg];
       res.send(res.locals.body);
     }
     console.log(`Inserted to Redis: ${Date.now() - res.locals.start} ms`);
-    redis.set(res.locals.query, normalized, "ex", this.config.cacheExpiration);
+    redis.set(
+      res.locals.query,
+      JSON.stringify(normalized),
+      "ex",
+      this.config.cacheExpiration
+    );
   }
 }
 
