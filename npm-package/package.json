@@ -1,8 +1,8 @@
 {
   "name": "stacheql",
-  "version": "2.0.2",
+  "version": "2.0.4",
   "description": "simple and fast server-side cache for graphql",
-  "main": "./src/stache.js",
+  "main": "stache.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
