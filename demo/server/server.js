@@ -12,19 +12,17 @@ const API_KEY = process.env.ACCESS_TOKEN;
 
 const config = {
   cacheExpiration: 120, // seconds
-  uniqueVariables: {
+  staticArgs: {
     term: String,
     location: Number,
     radius: Number,
   },
-  queryObject: "search",
-  queryTypename: "Businesses",
   flexArg: "limit",
   offsetArg: "offset",
+  queryObject: "search",
+  queryTypename: "Businesses",
 };
-const stache = new Stache(config, true);
-
-app.use(bodyParser.json());
+const stache = new Stache(config);
 
 app.use(bodyParser.json());
 

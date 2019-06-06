@@ -7,9 +7,10 @@
     </div>
     <ul v-if="search.business">
       <li v-for="business in search.business">
-        <br><b>{{business.name}}</b>  {{business.rating}} ☆</br>
+        <br><span class="bizName">{{business.name}}</span> <span class="star">  {{business.rating}} ★</span></br>
         <br>{{business.location.formatted_address}}</br>
-        <br>{{business.reviews[0].user.name}} says: <i>"{{business.reviews[0].text}}"</i>  </br>
+        <br><span class="reviewText">{{business.reviews[0].user.name}} says: <i>"{{business.reviews[0].text}}"</i>  </span></br>
+        <br><span class="reviewText">{{business.reviews[1].user.name}} says: <i>"{{business.reviews[1].text}}"</i>  </span></br>
         <br></br>
       </li>
     </ul>
@@ -32,6 +33,8 @@ export default {
     search: {
       query() {
         if (this.term && this.location && this.radius && this.limit) {
+          let date = new Date();
+          console.log('** query() **', date.toLocaleTimeString())
           return gql`
             query searchYelp(
               $term: String!
@@ -98,9 +101,12 @@ export default {
 
 <!-- "scoped" attribute limits CSS to this component only -->
 <style scoped>
-h1,
+h1{
+  color: black
+}
+
 h2 {
-  font-weight: normal;
+  font-weight: bold;
 }
 
 ul {

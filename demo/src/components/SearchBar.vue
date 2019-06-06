@@ -2,8 +2,8 @@
   <div class="search-bar">
     <form v-on:submit.prevent="searchYelp">
       <input placeholder="search" type="search" name="search-text" v-model="term">
-      <input placeholder="limit" type="search" name="limit-text" v-model="limit">
-      within
+      <input id="limitBox" placeholder="limit" type="search" name="limit-text" v-model="limit">
+      <span class="searchBartext">within</span>
       <!-- <input
         type="text"
         name="distance"
@@ -17,8 +17,9 @@
           :value="distance"
         >{{distance}} mile{{distance > 1 ? 's' : ''}}</option>
       </select>
-      of
+      <span class="searchBartext">of</span>
       <input
+        id="zipBox"
         type="text"
         name="zipcode"
         placeholder="enter zip"
