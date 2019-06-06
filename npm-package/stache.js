@@ -67,30 +67,19 @@ class Stache {
   }
 
   check(req, res, next) {
-    console.log("\n");
     res.locals.query = this.makeQueryString(this.config.uniqueVariables, req);
-    res.locals.start = Date.now(); // demo timer
+    res.locals.start = Date.now();
     redis.get(res.locals.query, (err, result) => {
       if (err) {
-        console.log("~~ERROR~~ in redis.get: ", err); // more error handling?
+        console.log("~~ERROR~~ in redis.get: ", err);
       } else if (result) {
         let parsedResult = JSON.parse(result);
-        // ***EXACT MATCH***
         if (
           parsedResult[`.data.${this.config.queryObject}.count`] ===
           req.body.variables[this.config.flexArg]
         ) {
-          parsedResult[".data.search.total"] = Date.now() - res.locals.start; // for timer
-          console.log(
-            `*** EXACT: ${
-              req.body.variables[this.config.flexArg]
-            } from cache ***`
-          );
-          console.log(
-            `Returned from cache: ${Date.now() - res.locals.start} ms`
-          );
+          parsedResult[".data.search.total"] = Date.now() - res.locals.start;
           return res.send(this.denormalize(parsedResult));
-          // ***SUBSET MATCH***
         } else {
           res.locals.subset = {};
           res.locals.subset[
@@ -105,7 +94,7 @@ class Stache {
             }
           }
           if (req.body.variables[this.config.flexArg] > max + 1)
-            res.locals.offset = max + 1; // initializing res.locals.offset will mean that we have a superset
+            res.locals.offset = max + 1;
         }
       }
       this.stage(req, res, next);
@@ -113,35 +102,18 @@ class Stache {
   }
 
   stage(req, res, next) {
-    // ***SUBSET ROUTE***
     if (res.locals.subset && !res.locals.offset) {
-      console.log(
-        `*** SUBSET: get ${
-          req.body.variables[this.config.flexArg]
-        } from cache ***`
-      );
-      console.log(`Returned from cache: ${Date.now() - res.locals.start} ms`);
       res.locals.subset = this.denormalize(res.locals.subset);
-      res.locals.subset.data.search.total = Date.now() - res.locals.start; // for timer
+      res.locals.subset.data.search.total = Date.now() - res.locals.start;
       return res.send(res.locals.subset);
-    }
-    // ***SUPERSET ROUTE***
-    else if (res.locals.subset && res.locals.offset && this.supersets) {
-      console.log(
-        `*** SUPERSET: fetch ${req.body.variables[this.config.flexArg] -
-          res.locals.offset} add'l ***`
-      );
+    } else if (res.locals.subset && res.locals.offset && this.supersets) {
       req.body.variables[this.config.offsetArg] = res.locals.offset;
       req.body.variables[this.config.flexArg] =
         req.body.variables[this.config.flexArg] - res.locals.offset;
       res.locals.httpRequest = true;
       next();
-      // ***NO MATCH ROUTE***
     } else {
-      console.log(
-        `*** NO MATCH: fetch ${req.body.variables[this.config.flexArg]} ***`
-      );
-      req.body.variables[this.config.offsetArg] = 0; // need to initialize offset for any API request
+      req.body.variables[this.config.offsetArg] = 0;
       res.locals.httpRequest = true;
       next();
     }
@@ -149,7 +121,6 @@ class Stache {
 
   it(req, res) {
     let normalized;
-    // ***SUPERSET ROUTE***
     if (res.locals.subset && res.locals.offset && this.supersets) {
       res.locals.superset = Object.assign(
         {},
@@ -161,18 +132,15 @@ class Stache {
         req.body.variables[this.config.flexArg] +
         req.body.variables[this.config.offsetArg];
       res.locals.superset = this.denormalize(res.locals.superset);
-      res.locals.superset.data.search.total = Date.now() - res.locals.start; // demo timer
+      res.locals.superset.data.search.total = Date.now() - res.locals.start;
       res.send(res.locals.superset);
-    }
-    // ***NO MATCH ROUTE***
-    else {
-      res.locals.body.data.search.total = Date.now() - res.locals.start; // demo timer
+    } else {
+      res.locals.body.data.search.total = Date.now() - res.locals.start;
       normalized = this.normalize(res.locals.body);
       normalized[`.data.${this.config.queryObject}.count`] =
         req.body.variables[this.config.flexArg];
       res.send(res.locals.body);
     }
-    console.log(`Inserted to Redis: ${Date.now() - res.locals.start} ms`);
     redis.set(
       res.locals.query,
       JSON.stringify(normalized),

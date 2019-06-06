@@ -22,7 +22,9 @@ const config = {
   flexArg: "limit",
   offsetArg: "offset",
 };
-const stache = new Stache(config);
+const stache = new Stache(config, true);
+
+app.use(bodyParser.json());
 
 app.use(bodyParser.json());
 
