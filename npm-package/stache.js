@@ -68,14 +68,17 @@ class Stache {
 
   check(req, res, next) {
     res.locals.query = this.makeQueryString(this.config.uniqueVariables, req);
+    res.locals.start = Date.now();
     redis.get(res.locals.query, (err, result) => {
       if (err) {
+        console.log("~~ERROR~~ in redis.get: ", err);
       } else if (result) {
         let parsedResult = JSON.parse(result);
         if (
           parsedResult[`.data.${this.config.queryObject}.count`] ===
           req.body.variables[this.config.flexArg]
-        ) {   
+        ) {
+          parsedResult[".data.search.total"] = Date.now() - res.locals.start;
           return res.send(this.denormalize(parsedResult));
         } else {
           res.locals.subset = {};
@@ -100,16 +103,17 @@ class Stache {
 
   stage(req, res, next) {
     if (res.locals.subset && !res.locals.offset) {
-      return res.send(this.denormalize(res.locals.subset));
-    }
-    else if (res.locals.subset && res.locals.offset && this.supersets) {
+      res.locals.subset = this.denormalize(res.locals.subset);
+      res.locals.subset.data.search.total = Date.now() - res.locals.start;
+      return res.send(res.locals.subset);
+    } else if (res.locals.subset && res.locals.offset && this.supersets) {
       req.body.variables[this.config.offsetArg] = res.locals.offset;
       req.body.variables[this.config.flexArg] =
         req.body.variables[this.config.flexArg] - res.locals.offset;
       res.locals.httpRequest = true;
       next();
     } else {
-      req.body.variables[this.config.offsetArg] = 0; 
+      req.body.variables[this.config.offsetArg] = 0;
       res.locals.httpRequest = true;
       next();
     }
@@ -127,9 +131,11 @@ class Stache {
       normalized[`.data.${this.config.queryObject}.count`] =
         req.body.variables[this.config.flexArg] +
         req.body.variables[this.config.offsetArg];
-      res.send(this.denormalize(res.locals.superset));
-    }
-    else {
+      res.locals.superset = this.denormalize(res.locals.superset);
+      res.locals.superset.data.search.total = Date.now() - res.locals.start;
+      res.send(res.locals.superset);
+    } else {
+      res.locals.body.data.search.total = Date.now() - res.locals.start;
       normalized = this.normalize(res.locals.body);
       normalized[`.data.${this.config.queryObject}.count`] =
         req.body.variables[this.config.flexArg];

@@ -1,6 +1,6 @@
 {
   "name": "stacheql",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "simple and fast server-side cache for graphql",
   "main": "stache.js",
   "scripts": {
