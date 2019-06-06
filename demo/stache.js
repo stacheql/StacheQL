@@ -1,10 +1,5 @@
 const Redis = require("ioredis");
-require("dotenv").config();
-const redis = new Redis({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  password: process.env.DB_PASS
-});
+const redis = new Redis();
 
 class Stache {
   constructor(config, supersets = true) {
@@ -74,10 +69,10 @@ class Stache {
   check(req, res, next) {
     console.log("\n");
     res.locals.query = this.makeQueryString(this.config.uniqueVariables, req);
-    res.locals.start = Date.now(); // demo timer
+    res.locals.start = Date.now();
     redis.get(res.locals.query, (err, result) => {
       if (err) {
-        console.log("~~ERROR~~ in redis.get: ", err); // more error handling?
+        console.log("~~ERROR~~ in redis.get: ", err);
       } else if (result) {
         let parsedResult = JSON.parse(result);
         // ***EXACT MATCH***
@@ -85,7 +80,7 @@ class Stache {
           parsedResult[`.data.${this.config.queryObject}.count`] ===
           req.body.variables[this.config.flexArg]
         ) {
-          parsedResult[".data.search.total"] = Date.now() - res.locals.start; // for timer
+          parsedResult[".data.search.total"] = Date.now() - res.locals.start;
           console.log(
             `*** EXACT: ${
               req.body.variables[this.config.flexArg]
@@ -110,7 +105,7 @@ class Stache {
             }
           }
           if (req.body.variables[this.config.flexArg] > max + 1)
-            res.locals.offset = max + 1; // initializing res.locals.offset will mean that we have a superset
+            res.locals.offset = max + 1; // init res.locals.offset means we have a superset
         }
       }
       this.stage(req, res, next);
@@ -127,7 +122,7 @@ class Stache {
       );
       console.log(`Returned from cache: ${Date.now() - res.locals.start} ms`);
       res.locals.subset = this.denormalize(res.locals.subset);
-      res.locals.subset.data.search.total = Date.now() - res.locals.start; // for timer
+      res.locals.subset.data.search.total = Date.now() - res.locals.start;
       return res.send(res.locals.subset);
     }
     // ***SUPERSET ROUTE***
@@ -146,7 +141,7 @@ class Stache {
       console.log(
         `*** NO MATCH: fetch ${req.body.variables[this.config.flexArg]} ***`
       );
-      req.body.variables[this.config.offsetArg] = 0; // need to initialize offset for any API request
+      req.body.variables[this.config.offsetArg] = 0;
       res.locals.httpRequest = true;
       next();
     }
@@ -166,12 +161,12 @@ class Stache {
         req.body.variables[this.config.flexArg] +
         req.body.variables[this.config.offsetArg];
       res.locals.superset = this.denormalize(res.locals.superset);
-      res.locals.superset.data.search.total = Date.now() - res.locals.start; // demo timer
+      res.locals.superset.data.search.total = Date.now() - res.locals.start;
       res.send(res.locals.superset);
     }
     // ***NO MATCH ROUTE***
     else {
-      res.locals.body.data.search.total = Date.now() - res.locals.start; // demo timer
+      res.locals.body.data.search.total = Date.now() - res.locals.start;
       normalized = this.normalize(res.locals.body);
       normalized[`.data.${this.config.queryObject}.count`] =
         req.body.variables[this.config.flexArg];

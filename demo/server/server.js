@@ -4,8 +4,8 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 require("dotenv").config();
 const app = express();
-const Stache = require("../stache.js");
-// const Stache = require("stacheql");
+// const Stache = require("../stache.js");
+const Stache = require("stacheql");
 
 const API_URL = "https://api.yelp.com/v3/graphql";
 const API_KEY = process.env.ACCESS_TOKEN;
@@ -23,8 +23,6 @@ const config = {
   offsetArg: "offset",
 };
 const stache = new Stache(config, true);
-
-app.use(bodyParser.json());
 
 app.use(bodyParser.json());
 
