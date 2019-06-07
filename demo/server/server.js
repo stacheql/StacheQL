@@ -22,6 +22,7 @@ const config = {
   queryObject: "search",
   queryTypename: "Businesses",
 };
+
 const stache = new Stache(config);
 
 app.use(bodyParser.json());
@@ -37,25 +38,21 @@ app.post(
   "/api",
   stache.check,
   (req, res, next) => {
-    if (res.locals.httpRequest) {
-      request.post(
-        {
-          url: API_URL,
-          method: "POST",
-          headers: {
-            Authorization: "Bearer " + API_KEY,
-          },
-          json: true,
-          body: req.body,
+    request.post(
+      {
+        url: API_URL,
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + API_KEY,
         },
-        (err, response, body) => {
-          res.locals.body = body;
-          return next();
-        }
-      );
-    } else {
-      return next();
-    }
+        json: true,
+        body: req.body,
+      },
+      (err, response, body) => {
+        res.locals.body = body;
+        return next();
+      }
+    );
   },
   stache.it
 );

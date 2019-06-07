@@ -1,137 +1,138 @@
 ![stacheql](./demo/src/assets/logo.png)
 
-## StacheQL is a **_fast, lightweight_** server-side Redis caching tool for GraphQL.
+### Node.js caching middleware for GraphQL queries, using Redis.
 
-`StacheQL` offers exact, subset, and superset query retrieval based on query parameters - a feature that no other GraphQL library offers. With minimal impact to existing applications, you can customize `StacheQL` to suit your app's needs simply by updating the configuration options.
+`StacheQL` limits roundtrips to the GraphQL API by caching query results, as specified by the config object. All matching queries, full or partial, will pull results directly from the Redis cache, and only continue to the GraphQL API if needed for additional results.
 
-Designed to use a Redis cache, `StacheQL` normalizes queries, evaluates query parameters to determine exact, subset, or superset matches, makes API/database requests as necessary, denormalizes any results returned from the Redis cache, and returns data to your application's frontend.
-
-# Why use StacheQL?
-
-### _StacheQL allows application's to more efficiently utilize cached data whenever possible, decreasing expensive database and API requests._
-
-Every cache offers retrieval of exact matches, `StacheQL` offers:
-
-1. _Subset query retrieval:_ retrieval of a subset of a larger query existing in the cache (ie. retrieving 5 of the top italian restaurants from the cache using a previously cached list of the top 10 italian restaurants, without ever needing to make an API request).
-
-2. _Superset query retrieval:_ retrieval of a larger query than what is currently cached after retrieving what can be utilized from the cache (ie. a query for the top 15 italian restaurants after previously caching a list of the top 10 italian restaurants would result in returning the 10 items from the cache, and the remaining 5 would be retrieved from the API).
-
-# Installation
-
-Install the module from the command line using npm:
+## Installation
 
 ```bash
-npm install stacheql
+$ npm install stacheql
 ```
 
-or by adding `stacheql` to your dependencies in your `package.json` file.
+or add `stacheql` to "dependencies" in your `package.json`, then `npm install`.
 
-# Getting Started
+## Requirements
 
-To get started using `StacheQL` to cache your GraphQL query results:
+### Redis
 
-1. Import `StacheQL` from your node modules.
+To use StacheQL, you must set up a Redis data store as your cache. Refer to the [documentation](https://redis.io/topics/quickstart) to get started.
 
-2. Define a configuration object containing the `cacheExpiration` for your specific application queries (in seconds), the `uniqueVariables` object containing the query parameters from your application that need to remain the same in order for another query to be a subset or superset of a cached query, the `offset` parameter specific to your GraphQL API that allows you to skip API items you already have cached, and the `limit` parameter that will indicate the quantity of query results to be retrieved.
+StacheQL was written for use with [ioredis](https://github.com/luin/ioredis), a Redis client for Node.js. If you prefer to use a different client, or to configure `ioredis` beyond the `default`, simply make those changes in `stache.js`.
 
-3. Insert `stache.check` middleware, `stache.it` middleware, in StacheQL formatted POST request.
+Default configuration in `stache.js`:
 
-### Basic Setup
+```js
+const Redis = require("ioredis");
+const redis = new Redis();
+```
+
+### Express & JSON
+
+StacheQL was written for the [Express](https://expressjs.com/) framework, and its middleware requires that body objects are parsed to JSON. The Express project recommends [body-parser](https://www.npmjs.com/package/body-parser).
+
+For HTTP requests sent to the GraphQL API, StacheQL requires that the request body is sent in JSON, NOT raw GraphQL.
+
+=============================================
+
+## Setup
 
 ```js
 const Stache = require("stacheql");
+const stache = new Stache(config[, options]);
+```
 
+### Sample `config` object
+
+```js
 const config = {
-  cacheExpiration: 120, // seconds
-  uniqueVariables: {
+  cacheExpiration: 120,
+  staticArgs: {
     term: String,
     location: Number,
     radius: Number,
   },
-  offset: "offset",
-  limit: "limit",
+  flexArg: "limit",
+  offsetArg: "offset",
+  queryObject: "search",
+  queryTypename: "Businesses",
 };
+```
 
+`cacheExpiration`: Time (in seconds) for each query result to persist in the cache.
+
+`staticArgs`: Query parameters in which values must match that of a prior query in order to validate a retrieval from the cache. Under the hood, `staticArgs` are combined to form the keys of the Redis cache. In the `staticArgs` object, the key represents the parameter `name` and the value represents the `type`. Mininum of one required.
+
+`flexArg`: Single query parameter that will determine how many results are returned from the cache. This parameter must be of type `Number`.
+
+`offsetArg`: Single query parameter that allows for an offset in the list of returned query results by a given amount, specifically for superset operations. This parameter must be of type `Number`.
+
+`queryObject`: Name of the query object for your GraphQL API.
+
+`queryTypename`: The `__typename` of that query object.
+
+### Options
+
+A `boolean` value of `false` may be optionally passed as the second argument to disable superset operations. Superset operations combine results from the Redis cache with results from a new HTTP request, thus requiring a smaller response payload from the GraphQL API. This defaults to `true`.
+
+```js
+// superset operations ENABLED
 const stache = new Stache(config);
+
+// superset operations DISABLED
+const stache = new Stache(config, false);
 ```
 
-### Configuration Object Details
+=============================================
+
+## Example Implementation
 
 ```js
-const config = {
-  cacheExpiration: // time it takes for each cached query to expire (in seconds)
-  uniqueVariables: { // for our demo app, the 'term', the 'location', and the 'radius' parameters need to match between queries for them to be considered for subset or superset retrievals
-    term: String, // our demo app used the 'term' parameter which is always of type String
-    location: Number, // our demo app used the 'location' parameter which is always of type Number
-    radius: Number, // our demo app used the 'radius' parameter which is always of type Numer
-  },
-  offset: 'offset', // for our demo app's API, the 'offset' method was called 'offset'
-  limit: 'limit' // for our demo app, the 'limit' parameter was called 'limit'
-}
-```
+const stache = new Stache(config);
 
-### Middleware Insertion & POST Request Formatting
+app.use(bodyParser.json());
 
-Use the example below to insert the required middleware and slightly alter the typical POST request format.
-
-1. Insert `stache.check` immediately prior to request body. This will check to see whether or not the query being made is a subset, superset, or exact match of a cached query and then fetch from the cache or API/database accordingly.
-
-2. Wrap request body in 'if' statement with `res.locals.httpRequest` conditional with 'else' statement returning `next()`.
-
-3. Insert `res.locals.body` in callback function after request body in order to persist request parameters.
-
-4. Insert `stache.it` middleware immediately after POST request. This will check to see whether not the query was a superset match of a cached query or a new query requiring an API/database request and then prepare it to be returned to the frontend accordingly.
-
-```js
 app.post(
   "/api",
-  stache.check, //inserted middleware
+  stache.check, // StacheQL method
   (req, res, next) => {
-    if (res.locals.httpRequest) {
-      // inserted 'if' statement
-      request.post(
-        {
-          url: YELP_API_URL,
-          method: "POST",
-          headers: {
-            Authorization: "Bearer " + YELP_API_KEY,
-          },
-          json: true,
-          body: req.body,
+    request.post(
+      {
+        url: API_URL,
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + API_KEY,
         },
-        (err, response, body) => {
-          res.locals.body = body; // inserted variable
-          return next();
-        }
-      );
-    } else {
-      // inserted 'else' statement
-      return next();
-    }
+        json: true,
+        body: req.body,
+      },
+      (err, response, body) => {
+        res.locals.body = body; // must assign incoming data to "res.locals.body" and return next()
+        return next();
+      }
+    );
   },
-  stache.it // inserted middleware
+  stache.it // StacheQL method
 );
 ```
 
-# Using StacheQL
+### StacheQL Methods
 
-After completing the above steps `StacheQL` will automatically evaluate and cache all of your application's queries as they pass through the server, allowing API/database requests as required.
+`stache.check`: Evaluates the request body to determine if there is a match on `staticArgs` in the Redis cache. If there is a match, then `flexArg` is used to determine what kind of match: an _exact_ match, a _subset_ match or a _superset_ match. Exact and subset matches immediately return the needed results to the front end, bypassing the HTTP request. If no match or a superset match, the HTTP request is sent for the additional results.
 
-## Caching Query Results
+`stache.it`: Handles the incoming data from the HTTP request, stored in `res.locals.body`. For superset matches, the pre-existing subset in the Redis cache is overwritten by the new superset data. Otherwise, a new entry is created.
 
-After queries are recieved by the server, they are:
+=============================================
 
-1. Evaluated for exact, subset, or superset matches existing in the cache.
+## Why use StacheQL?
 
-2. If `StacheQL` algorithms detect an exact or subset match, results are denormalized and returned directly from the cache.
+### _StacheQL allows applications to more efficiently utilize cached data whenever possible, decreasing the frequency of expensive GraphQL queries._
 
-3. If `StacheQL` algorithms detect a superset query match, the cached match (which is a subset of the larger query being made) is combined with the results retrieved from the subsequent API/database request (which is only made for the remaining number of items not retrieved from the cache, ie. a query for 15 with 10 results already in the cache would have only 5 retrieved from the API). The additional items retrieved from the API/database are then normalized, formatted, and concated onto the results that were already in the cache.
+Every cache offers retrieval of exact matches, `StacheQL` also offers:
 
-4. If `StacheQL` algorithms determine no matches available in the cache, the API/database request is made for the entire query, and the results are then normalized and cached.
+1. _Subset query retrieval:_ For example, retrieving 5 of the top Italian restaurants from the cache using a previously queried/cached list of the top 10 Italian restaurants, obviating the HTTP request to the API.
 
-5. Retrieved data is denormalized and sent to the frontend.
-
-Note: Redis cache can be accessed and examined at any time using the command line.
+2. _Superset query retrieval:_ For example, a query for the top 15 Italian restaurants after previously querying/caching a list of the top 10 Italian restaurants would result in returning the 10 items from the cache and pinging the API endpoint for the additional five. Both results would be stitched together and returned to the client, then cached in replacement of the previous subset.
 
 # Issues
 
