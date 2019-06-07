@@ -134,7 +134,6 @@ class Stache {
       req.body.variables[this.config.offsetArg] = res.locals.offset;
       req.body.variables[this.config.flexArg] =
         req.body.variables[this.config.flexArg] - res.locals.offset;
-      res.locals.httpRequest = true;
       next();
       // ***NO MATCH ROUTE***
     } else {
@@ -142,7 +141,6 @@ class Stache {
         `*** NO MATCH: fetch ${req.body.variables[this.config.flexArg]} ***`
       );
       req.body.variables[this.config.offsetArg] = 0;
-      res.locals.httpRequest = true;
       next();
     }
   }
