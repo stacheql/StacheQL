@@ -110,10 +110,10 @@ class Stache {
       req.body.variables[this.config.offsetArg] = res.locals.offset;
       req.body.variables[this.config.flexArg] =
         req.body.variables[this.config.flexArg] - res.locals.offset;
-      next();
+      return next();
     } else {
       req.body.variables[this.config.offsetArg] = 0;
-      next();
+      return next();
     }
   }
 
