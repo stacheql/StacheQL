@@ -1,8 +1,20 @@
 ![stacheql](./demo/src/assets/logo.png)
 
-### Node.js caching middleware for GraphQL queries, using Redis.
+### Node.js caching middleware for GraphQL queries, using Redis
 
-`StacheQL` limits roundtrips to the GraphQL API by caching query results, as specified by the config object. All matching queries, full or partial, will pull results directly from the Redis cache, and only continue to the GraphQL API if needed for additional results.
+StacheQL limits roundtrips to the GraphQL API by caching query results, as specified by the `config` object. All matching queries, full or partial, will pull results directly from the Redis cache, and only ping the GraphQL API if needed for additional results.
+
+======================================================================
+
+## Why use StacheQL?
+
+Every cache offers retrieval of exact matches-- StacheQL also offers:
+
+1. _Subset query retrieval:_ For example, retrieving 5 of the top Italian restaurants from the cache using a previously queried/cached list of the top 10 Italian restaurants, obviating the HTTP request to the API.
+
+2. _Superset query retrieval:_ For example, a query for the top 15 Italian restaurants after previously querying/caching a list of the top 10 Italian restaurants would result in returning the 10 items from the cache and pinging the API endpoint for the additional five. Both results would be stitched together and returned to the client, then cached in replacement of the previous subset.
+
+======================================================================
 
 ## Installation
 
@@ -33,16 +45,16 @@ StacheQL was written for the [Express](https://expressjs.com/) framework, and it
 
 For HTTP requests sent to the GraphQL API, StacheQL requires that the request body is sent in JSON, NOT raw GraphQL.
 
-=============================================
+======================================================================
 
 ## Setup
 
 ```js
 const Stache = require("stacheql");
-const stache = new Stache(config[, options]);
+const stache = new Stache(config [, options]);
 ```
 
-### Sample `config` object
+### Sample `config`
 
 ```js
 const config = {
@@ -83,7 +95,7 @@ const stache = new Stache(config);
 const stache = new Stache(config, false);
 ```
 
-=============================================
+======================================================================
 
 ## Example Implementation
 
@@ -122,21 +134,11 @@ app.post(
 
 `stache.it`: Handles the incoming data from the HTTP request, stored in `res.locals.body`. For superset matches, the pre-existing subset in the Redis cache is overwritten by the new superset data. Otherwise, a new entry is created.
 
-=============================================
-
-## Why use StacheQL?
-
-### _StacheQL allows applications to more efficiently utilize cached data whenever possible, decreasing the frequency of expensive GraphQL queries._
-
-Every cache offers retrieval of exact matches, `StacheQL` also offers:
-
-1. _Subset query retrieval:_ For example, retrieving 5 of the top Italian restaurants from the cache using a previously queried/cached list of the top 10 Italian restaurants, obviating the HTTP request to the API.
-
-2. _Superset query retrieval:_ For example, a query for the top 15 Italian restaurants after previously querying/caching a list of the top 10 Italian restaurants would result in returning the 10 items from the cache and pinging the API endpoint for the additional five. Both results would be stitched together and returned to the client, then cached in replacement of the previous subset.
+======================================================================
 
 # Issues
 
-If you find an [issue](https://github.com/stacheql/StacheQL/issues) let us know!
+If you find an [issue](https://github.com/stacheql/StacheQL/issues), let us know!
 
 # Contributers
 

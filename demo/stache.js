@@ -134,14 +134,14 @@ class Stache {
       req.body.variables[this.config.offsetArg] = res.locals.offset;
       req.body.variables[this.config.flexArg] =
         req.body.variables[this.config.flexArg] - res.locals.offset;
-      next();
+      return next();
       // ***NO MATCH ROUTE***
     } else {
       console.log(
         `*** NO MATCH: fetch ${req.body.variables[this.config.flexArg]} ***`
       );
       req.body.variables[this.config.offsetArg] = 0;
-      next();
+      return next();
     }
   }
 
