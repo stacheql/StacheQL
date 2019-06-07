@@ -136,7 +136,13 @@ app.post(
 
 ======================================================================
 
-# Issues
+## Demo App
+
+To see StacheQL in action using Yelp's public GraphQL API, clone this repo and check out the `demo` directory. First, request an API key from [Yelp's Developer Beta](https://www.yelp.com/developers/v3/manage_app) and add a `.env` file to your `demo` directory. In the `.env`, set `ACCESS_TOKEN` equal to your API key. As detailed above, you will also need Redis up and running.
+
+======================================================================
+
+## Issues
 
 If you find an [issue](https://github.com/stacheql/StacheQL/issues), let us know!
 
